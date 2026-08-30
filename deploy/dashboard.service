@@ -1,0 +1,20 @@
+[Unit]
+Description=Analyst Command Center dashboard
+After=network-online.target collector.service
+
+[Service]
+Type=simple
+User=collector
+WorkingDirectory=/opt/collector
+Environment=PYTHONUNBUFFERED=1
+; Environment=DASHBOARD_TOKEN=change-me-long-random-string
+ExecStart=/opt/collector/.venv/bin/uvicorn dashboard.server:app --host 127.0.0.1 --port 8080
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/collector
+
+[Install]
+WantedBy=multi-user.target

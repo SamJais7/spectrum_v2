@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<title>Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg-color: #f5f1ed; 
+  --card-bg: #ffffff; 
+  --text-main: #252323; 
+  --text-muted: #70798c; 
+  --accent-focal: #252323; 
+  --accent-focal-hover: #191c22;
+  --accent-warm: #70798c; 
+  --border-color: #dad2bc;
+  --radius-blob-1: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  --radius-blob-2: 32px; /* Updated KPI border radius */
+  --radius-blob-3: 50% 50% 30% 70% / 50% 50% 70% 50%;
+  --radius-soft: 24px;
+  --shadow-soft: 8px 12px 24px rgba(218, 210, 188, 0.4), -4px -4px 16px rgba(255, 255, 255, 0.8);
+}
+/* Custom cursor */
+* { box-sizing: border-box; margin: 0; }
+body {
+  background: var(--bg-color);
+  color: var(--text-main);
+  font: 15px/1.6 'Plus Jakarta Sans', sans-serif;
+  padding: 32px;
+  /* subtle "skin" texture simulation via radial gradient noise */
+  background-image: radial-gradient(rgba(218, 210, 188, 0.2) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+header {
+  display: flex; flex-wrap: wrap; gap: 20px; align-items: center; padding: 32px 40px;
+  background: var(--card-bg);
+  border: 2px dashed var(--border-color); /* "scribble" feel */
+  border-radius: var(--radius-blob-1);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 40px;
+  position: relative;
+}
+
+h1 {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  margin-right: 16px;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  letter-spacing: -0.02em;
+}
+.emblem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--accent-warm);
+  border-radius: 50%;
+  color: white;
+  font-size: 24px;
+  box-shadow: inset -2px -2px 6px rgba(0,0,0,0.1);
+}
+select, input {
+  background: var(--card-bg);
+  color: var(--text-main);
+  border: 2px solid var(--border-color);
+  padding: 12px 20px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  appearance: none;
+  border-radius: 20px;
+  box-shadow: inset 1px 2px 4px rgba(218, 210, 188, 0.2);
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: var(--accent-focal);
+  box-shadow: 0 0 0 3px rgba(37, 35, 35, 0.2), inset 1px 2px 4px rgba(218, 210, 188, 0.1);
+}
+button {
+  background: var(--accent-focal);
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  border-radius: 24px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 12px rgba(37, 35, 35, 0.3);
+}
+button.ghost {
+  background: transparent;
+  color: var(--accent-focal);
+  border: 2px solid var(--accent-focal);
+  box-shadow: none;
+}
+button:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 16px rgba(37, 35, 35, 0.4);
+}
+button.ghost:hover {
+  background: rgba(37, 35, 35, 0.1);
+}
+button:active {
+  transform: translateY(1px);
+}
+
+#alerts {
+  margin: 16px 0; padding: 24px;
+  background: #FFEAEA;
+  border: 2px dashed #70798c;
+  border-radius: var(--radius-blob-3);
+  color: #D9534F;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  display: none; cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+}
+.grid { display: grid; grid-template-columns: 2fr 1fr; gap: 40px; margin-top: 40px; }
+.card {
+  background: var(--card-bg);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-soft);
+  padding: 32px;
+  box-shadow: var(--shadow-soft);
+  position: relative;
+  transition: transform 0.3s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+}
+.kpis { display: flex; gap: 32px; margin: 40px 0; flex-wrap: wrap; }
+.kpi {
+  flex: 1;
+  min-width: 200px;
+  background: var(--card-bg);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-blob-2); /* updated */
+  padding: 32px 24px;
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.kpi b {
+  display: block;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--accent-focal);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.kpi span {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+}
+.row2 { display: grid; grid-template-columns: 1fr 340px; gap: 40px; }
+#slider {
+  width: 100%;
+  appearance: none;
+  background: transparent;
+  margin-top: 24px;
+}
+#slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  background: var(--border-color);
+  border-radius: 4px;
+}
+#slider::-webkit-slider-thumb {
+  height: 24px;
+  width: 24px;
+  background: var(--accent-focal);
+  cursor: pointer;
+  appearance: none;
+  margin-top: -8px;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+#slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+#timeLabels { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 14px; font-weight: 600; margin-top: 12px; }
+#nodePanel { font-size: 15px; } 
+#nodePanel h3 { margin-bottom: 20px; font-family: 'Be Vietnam Pro', sans-serif; font-size: 22px; color: var(--accent-focal); font-weight: 700; border-bottom: 2px dashed var(--border-color); padding-bottom: 12px; }
+#nodePanel table { width: 100%; border-collapse: collapse; }
+#nodePanel td { padding: 14px 0; border-bottom: 1px solid rgba(218, 210, 188, 0.4); }
+#nodePanel td:first-child { font-weight: 700; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.topic {
+  display: flex; justify-content: space-between; padding: 20px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.2s;
+  margin-bottom: 4px;
+}
+.topic:hover {
+  background-color: white;
+  border-color: var(--border-color);
+  transform: scale(1.01);
+  box-shadow: var(--shadow-soft);
+}
+.topic:last-child { border-bottom: 1px solid var(--border-color); }
+.topic b { font-family: 'Be Vietnam Pro', sans-serif; font-size: 18px; font-weight: 700; color: var(--text-main); }
+.vel { color: var(--accent-focal); font-weight: 700; } .vel.down { color: var(--accent-warm); }
+.alertTag { color: white; background: var(--accent-warm); padding: 4px 10px; font-weight: 700; font-size: 11px; margin-left: 8px; border-radius: 12px; letter-spacing: 0.05em; }
+.bar { height: 10px; background: var(--border-color); overflow: hidden; margin-top: 8px; border-radius: 5px; }
+.bar>div { height: 100%; background: var(--accent-warm); border-radius: 5px; }
+#drawer {
+  position: fixed; top: 0; right: -650px; width: 600px; height: 100%; background: var(--card-bg);
+  padding: 40px; overflow-y: auto; transition: right .5s cubic-bezier(0.25, 1, 0.5, 1); z-index: 99;
+  box-shadow: -12px 0 32px rgba(218, 210, 188, 0.6);
+  border-left: 2px dashed var(--border-color);
+  border-radius: 24px 0 0 24px;
+}
+#drawer.open { right: 0; }
+#graphWrap { position: relative; height: 520px; margin-top: 24px; background: white; border: 2px solid var(--border-color); border-radius: var(--radius-soft); overflow: hidden; }
+.legend { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.95); border: 2px dashed var(--border-color); border-radius: 16px; padding: 12px 16px; font-size: 12px; font-weight: 700; z-index: 2; box-shadow: var(--shadow-soft); }
+#traceInfo { color: var(--accent-warm); font-family: 'Be Vietnam Pro', sans-serif; font-size: 16px; font-weight: 700; min-height: 24px; }
+h2 { font-family: 'Be Vietnam Pro', sans-serif; font-size: 20px; color: var(--text-main); margin-bottom: 24px; font-weight: 700; display: flex; align-items: center; gap: 16px; }
+h2::after { content: ''; flex: 1; height: 2px; background: repeating-linear-gradient(to right, var(--border-color), var(--border-color) 4px, transparent 4px, transparent 8px); }
+</style>
+</head>
+<body>
+<header>
+<h1><span class="emblem">☻</span> Command Center</h1>
+<select id="fPlatform"><option value="">All platforms</option><option value="x">X</option><option value="telegram">Telegram</option></select>
+<select id="fEmotion"><option value="">All emotions</option></select>
+<select id="fLocation"><option value="">All locations</option></select>
+<select id="fLanguage"><option value="">All languages</option></select>
+<input id="fSearch" placeholder="FULL-TEXT SEARCH…" size="18"/>
+<select id="fWindow">
+<option value="900000">15 min</option><option value="3600000">1 hour</option>
+<option selected="" value="21600000">6 hours</option><option value="86400000">24 hours</option>
+<option value="604800000">7 days</option>
+</select>
+<button class="ghost" id="playBtn">▶ Play</button>
+</header>
+<div id="alerts"></div>
+<div class="card" style="margin-bottom: 40px;">
+<h2>Master timeline — drag the slider: every panel follows</h2>
+<canvas height="90" id="tlChart"></canvas>
+<input id="slider" max="1000" min="0" type="range" value="1000"/>
+<div id="timeLabels"><span id="tFrom"></span><span id="tTo"></span></div>
+</div>
+<div class="kpis">
+<div class="kpi transition-all duration-300"><b id="kPosts">–</b><span>posts in window</span></div>
+<div class="kpi transition-all duration-300"><b id="kUsers">–</b><span>users mapped</span></div>
+<div class="kpi transition-all duration-300"><b id="kTopic">–</b><span>top topic</span></div>
+<div class="kpi transition-all duration-300"><b id="kAlerts">–</b><span>viral alerts (24h)</span></div>
+</div>
+<div class="grid">
+<div class="card">
+<h2>Interactive social map <span id="traceInfo"></span></h2>
+<div style="display:flex;gap:16px;margin-bottom:16px;align-items:center; font-weight:700; font-size: 13px;">
+<span style="color:var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">COLOR BY</span>
+<select id="colorBy">
+<option value="community">Community</option><option value="emotion">Sentiment</option>
+<option value="location">Location</option><option value="suspicion">Botnet suspicion</option>
+</select>
+<span style="color:var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-left: 16px;">MAX DOTS</span>
+<input id="nodeLimit" max="800" min="50" style="width:90px" type="number" value="300"/>
+<button class="ghost" id="backToMap" style="display:none; margin-left: auto;">← Back to map</button>
+</div>
+<div id="graphWrap"><div class="legend" id="legend"></div><div id="net" style="height:100%"></div></div>
+</div>
+<div>
+<div class="card" id="nodePanel"><h2>Node inspector</h2><div style="color:var(--text-muted); font-style: italic;">Click a dot on the map...</div></div>
+<div class="card" style="margin-top:40px">
+<h2>Sentiment mix</h2><canvas height="180" id="pieChart"></canvas>
+</div>
+</div>
+</div>
+<div class="card" style="margin-top:40px">
+<h2>Trending topics (top 10 · volume &amp; velocity) — click for details</h2>
+<div id="topicList"><div style="color:var(--text-muted); font-style: italic;">Waiting for topic scans...</div></div>
+</div>
+<div id="drawer"><button class="ghost" onclick="drawer.classList.remove('open')" style="margin-bottom:32px">✕ Close</button><div id="drawerBody"></div></div>
+<script>
+const EMO_COLORS={supportive:'#70798c',hostile:'#70798c',sarcasm:'#b3b5bd',
+  fear:'#dad2bc',excitement:'#252323',neutral:'#b3b5bd'};
+const TOKEN=localStorage.getItem('cc_token')||'';
+const S={min:0,max:0,to:0,span:21600000,playing:false,traceMode:false};
+let meta={},tlChart=null,pieChart=null,network=null,nodesDS=null,edgesDS=null,gdata={nodes:[],edges:[]};
+const $=id=>document.getElementById(id);
+const drawer=$('drawer');
+
+function api(path,params={}){
+  const u=new URL(path,location.origin);
+  for(const[k,v]of Object.entries(params))if(v!==''&&v!=null)u.searchParams.set(k,v);
+  const h={};if(TOKEN)h['Authorization']='Bearer '+TOKEN;
+  return fetch(u,{headers:h}).then(async r=>{
+    if(r.status===401){const t=prompt('Dashboard token:');if(t){localStorage.setItem('cc_token',t);location.reload()}throw 0}
+    if(!r.ok)throw new Error(await r.text());return r.json()});
+}
+const fmt=t=>new Date(t).toISOString().replace('T',' ').slice(0,16)+' UTC';
+const debounce=(fn,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
+function fparams(){return{platform:$('fPlatform').value,emotion:$('fEmotion').value,
+  location:$('fLocation').value,language:$('fLanguage').value,q:$('fSearch').value}}
+function wparams(){const p=fparams();return{...p,from:Math.max(S.min,S.to-S.span),to:S.to}}
+
+const refreshAll=debounce(async()=>{
+  if(!S.to)return;
+  const wp=wparams();
+  try{
+    const[ov,tl,tp,al]=await Promise.all([
+      api('/api/overview',wp),api('/api/timeline',wp),
+      api('/api/topics'),api('/api/alerts')]);
+    $('kPosts').textContent=ov.posts.toLocaleString();
+    $('kUsers').textContent=ov.users.toLocaleString();
+    $('kAlerts').textContent=ov.alerts_24h;
+    $('kTopic').textContent=tp.topics[0]?tp.topics[0].label:'–';
+    drawTimeline(tl);drawPie(ov.sentiment_mix);drawTopics(tp);
+    $('alerts').style.display=al.alerts.length?'block':'none';
+    if(al.alerts.length)$('alerts').innerHTML=
+      '🚨 VIRAL ALERTS: '+al.alerts.slice(0,3).map(a=>
+      `<b>${a.label||a.topic_key}</b> ×${Math.round(a.ratio)} (${Math.round(a.cur)} posts/hr)`).join(' · ');
+    $('alerts').onclick=()=>{const k=al.alerts[0].topic_key;loadTopicDetail(k)};
+    if(!S.traceMode)loadGraph();
+  }catch(e){console.error(e)}
+},300);
+
+async function loadMeta(){
+  meta=await api('/api/meta');
+  S.min=meta.min_ms||Date.now()-86400000;S.max=meta.max_ms||Date.now();S.to=S.max;
+  for(const e of meta.emotions){const o=document.createElement('option');o.value=e;
+    o.textContent=e[0].toUpperCase()+e.slice(1);$('fEmotion').append(o)}
+  for(const l of meta.locations){const o=document.createElement('option');o.value=l;
+    o.textContent=l;$('fLocation').append(o)}
+  for(const l of meta.languages){const o=document.createElement('option');o.value=l;
+    o.textContent=l;$('fLanguage').append(o)}
+  refreshAll();
+}
+
+function drawTimeline(tl){
+  const labels=tl.buckets.map(b=>fmt(b));
+  const mk=(name,color)=>({label:name,data:tl.series[name]||[],backgroundColor:color,stack:'s', borderRadius: 4});
+  if(tlChart)tlChart.destroy();
+  tlChart=new Chart($('tlChart'),{type:'bar',
+    data:{labels,datasets:[mk('x','#252323'),mk('telegram','#70798c')]},
+    options:{animation:false,plugins:{legend:{labels:{color:'#70798c', font:{family:'Plus Jakarta Sans', weight:'bold'}}}},
+      scales:{x:{ticks:{color:'#70798c',maxTicksLimit:12, font:{family:'Plus Jakarta Sans', weight:'600'}}, grid:{color:'rgba(218, 210, 188, 0.4)', drawBorder:false}},
+        y:{ticks:{color:'#70798c', font:{family:'Plus Jakarta Sans', weight:'600'}}, grid:{color:'rgba(218, 210, 188, 0.4)', drawBorder:false}}},
+      onClick:(e,els)=>{if(els.length){S.to=tl.buckets[els[0].index]+tl.bucket_ms;
+        syncSlider();refreshAll()}}}});
+}
+
+function drawPie(mix){
+  const labels=Object.keys(mix),data=Object.values(mix);
+  if(pieChart)pieChart.destroy();
+  pieChart=new Chart($('pieChart'),{type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:labels.map(l=>EMO_COLORS[l]||'#b3b5bd'), borderColor:'#ffffff', borderWidth:4, hoverOffset: 8}]},
+    options:{cutout:'65%', plugins:{legend:{position:'right',labels:{color:'#70798c',boxWidth:12, font:{family:'Plus Jakarta Sans', weight:'600'}, usePointStyle:true}}}}});
+}
+
+function drawTopics(tp){
+  const el=$('topicList');
+  if(!tp.topics.length){el.innerHTML='<div style="color:var(--text-muted); font-style:italic;">No active topics yet...</div>';return}
+  el.innerHTML=tp.topics.map((t,i)=>{
+    const up=t.velocity>=1.5;
+    return`<div class="topic" data-k="${t.key}">
+      <span>${i+1}. <b>${t.label}</b> ${t.alert?'<span class="alertTag">🚨 ALERT</span>':''}</span>
+      <span><span style="font-family:'Be Vietnam Pro', sans-serif; font-weight:700">${t.volume}</span>/HR <span class="vel ${up?'':'down'}">${up?'▲':'·'} ×${t.velocity}</span></span>
+    </div>`}).join('');
+  el.querySelectorAll('.topic').forEach(n=>n.onclick=()=>loadTopicDetail(n.dataset.k));
+}
+
+async function loadTopicDetail(key){
+  const d=await api(`/api/topic/${encodeURIComponent(key)}`);
+  const bars=items=>items.map(i=>{
+    const max=Math.max(...items.map(x=>x.count),1);
+    return`<div style="margin:16px 0; font-size:14px; font-weight:600;"><div style="display:flex;justify-content:space-between">
+      <span>${i.label}</span><span style="color:var(--accent-focal); font-family:'Be Vietnam Pro', sans-serif; font-weight:700">${i.count}</span></div>
+      <div class="bar"><div style="width:${100*i.count/max}%"></div></div></div>`}).join('');
+  $('drawerBody').innerHTML=`
+    <h2 style="margin-top:24px;">TOPIC: ${d.key}</h2>
+    <canvas id="dChart" height="160"></canvas>
+    <h2 style="margin-top:40px;">DOMINANT VIPS</h2>
+    ${d.vips.map(v=>`<div class="topic" data-a="${v.author_id}" data-s="x">
+      <span>@${v.username||v.author_id} ${v.bridge?'🤝':''}</span>
+      <span style="font-size:13px; color:var(--text-muted)">${v.posts} POSTS · PR ${(v.pagerank||0).toExponential(1)}</span></div>`).join('')}
+    <h2 style="margin-top:40px;">AGE RANGES</h2>${bars(d.age)}
+    <h2 style="margin-top:40px;">LOCATIONS</h2>${bars(d.location)}
+    <h2 style="margin-top:40px;">LANGUAGES</h2>${bars(d.language)}`;
+  new Chart($('dChart'),{type:'line',
+    data:{labels:d.hourly.map(h=>fmt(h.t_ms)),datasets:[{data:d.hourly.map(h=>h.n),
+      borderColor:'#252323',fill:true,backgroundColor:'rgba(37, 35, 35, 0.15)',tension:0.4, borderWidth:3, pointBackgroundColor:'#252323', pointRadius: 2}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#70798c',maxTicksLimit:6, font:{family:'Plus Jakarta Sans', weight:'600'}}, grid:{color:'rgba(218, 210, 188, 0.4)'}},
+      y:{ticks:{color:'#70798c', font:{family:'Plus Jakarta Sans', weight:'600'}}, grid:{color:'rgba(218, 210, 188, 0.4)'}}}}});
+  drawer.classList.add('open');
+  $('drawerBody').querySelectorAll('.topic[data-a]').forEach(n=>n.onclick=()=>showUser(n.dataset.s,n.dataset.a));
+}
+
+// ------------------------------------------------------------------ graph
+const hashColor=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))%360;
+  return`hsl(${h}, 20%, 70%)`}; // Desaturated variants
+
+async function loadGraph(){
+  const g=await api('/api/graph',{...wparams(),limit:$('nodeLimit').value});
+  gdata=g;
+  const mode=$('colorBy').value;
+  const maxPr=Math.max(...g.nodes.map(n=>n.pagerank||0),1e-9);
+  const color=n=>{
+    if(mode==='emotion')return EMO_COLORS[n.emotion]||'#b3b5bd';
+    if(mode==='location')return n.location?hashColor(n.location):'#b3b5bd';
+    if(mode==='suspicion'){const s=n.suspicion||0;
+      return`hsl(${Math.round(120-120*Math.min(s,1))},20%,60%)`} // Desaturated
+    return`hsl(${(n.community*47)%360},20%,70%)`};
+  nodesDS=new vis.DataSet(g.nodes.map(n=>({
+    id:n.id,label:n.username?'@'+n.username:n.id,
+    value:Math.max(1,40*(n.pagerank||0)/maxPr),
+    color:{background:color(n),border:n.flagged?'#70798c':(n.bridge?'#252323':'#ffffff'),
+           borderWidth:n.flagged?3:(n.bridge?3:1)},
+    shape:n.bridge?'star':'dot',title:
+      `@${n.username||'?'}\ninfluence (PR): ${(n.pagerank||0).toExponential(2)}\n`+
+      `received interactions: ${Math.round(n.in_w||0)}\nsent: ${Math.round(n.out_w||0)}\n`+
+      `community #${n.community}${n.bridge?' · BRIDGE':''}${n.flagged?' · SUSPICIOUS CLUSTER':''}\n`+
+      `emotion: ${n.emotion||'?'} · location: ${n.location||'?'}`,
+    font:{color:'#252323', face:'Plus Jakarta Sans', strokeWidth:3, strokeColor:'rgba(255,255,255,0.8)', size:13, weight:'bold'},
+    _raw:n})));
+  edgesDS=new vis.DataSet(g.edges.map((e,i)=>({id:i,from:e.from,to:e.to,
+    value:e.weight,color:{color:'rgba(218, 210, 188, 0.7)',highlight:'#252323'}})));
+  if(!network){
+    network=new vis.Network($('net'),{nodes:nodesDS,edges:edgesDS},
+      {physics:{barnesHut:{springLength:120, damping: 0.15}},interaction:{hover:true},
+       edges:{smooth:{type:'continuous', roundness:0.5}}}); // smoother organic edges
+    network.on('click',p=>{if(p.nodes.length)showNode(p.nodes[0])});
+  }else{network.setData({nodes:nodesDS,edges:edgesDS})}
+  const lg=$('legend');
+  if(mode==='emotion')lg.innerHTML=Object.entries(EMO_COLORS).map(([k,c])=>
+    `<span style="color:${c}">●</span> ${k.toUpperCase()}`).join(' &nbsp; ');
+  else if(mode==='suspicion')lg.innerHTML='<span style="color:#b3b5bd">●</span> NORMAL &nbsp; <span style="color:#70798c">●</span> SUSPICIOUS';
+  else if(mode==='location')lg.innerHTML='EACH LOCATION GETS ITS OWN HUE';
+  else lg.innerHTML='EACH COMMUNITY GETS ITS OWN HUE · <span style="color:#252323">★</span> BORDER = BRIDGE · <span style="color:#70798c">●</span> = FLAGGED CLUSTER';
+}
+
+function showNode(id){
+  const n=nodesDS.get(id)._raw;
+  $('nodePanel').innerHTML=`<h2>Node inspector</h2>
+    <h3>@${n.username||n.author_id}</h3>
+    <table>
+    <tr><td>PLATFORM</td><td>${n.source.toUpperCase()}</td></tr>
+    <tr><td>INFLUENCE (PR)</td><td>${(n.pagerank||0).toExponential(2)}</td></tr>
+    <tr><td>MEGAPHONE (IN)</td><td>${Math.round(n.in_w||0)} WEIGHTED</td></tr>
+    <tr><td>SENT</td><td>${Math.round(n.out_w||0)}</td></tr>
+    <tr><td>BETWEENNESS</td><td>${Math.round(n.betweenness||0)} ${n.bridge?'🤝 BRIDGE':''}</td></tr>
+    <tr><td>COMMUNITY</td><td>#${n.community}${n.flagged?' 🚨 SUSPICIOUS':''}</td></tr>
+    <tr><td>DOMINANT EMOTION</td><td><span style="color:var(--accent-focal); font-weight:bold">${(n.emotion||'?').toUpperCase()}</span></td></tr>
+    <tr><td>LOCATION</td><td>${(n.location||'?').toUpperCase()}</td></tr></table>
+    <button style="margin-top:24px; width:100%" onclick="traceUser('${n.source}','${n.author_id}')">
+      ▶ TRACE POST SPREAD</button>`;
+}
+
+async function traceUser(source,authorId){
+  const t=await api('/api/trace',{source,author_id:authorId});
+  if(!t.count){$('traceInfo').textContent='NO REPLIES TRACED FOR THIS USER';return}
+  $('backToMap').style.display='';S.traceMode=true;
+  const byMid={};t.nodes.forEach(n=>byMid[n.mid]=n);
+  const maxCh=Math.max(...t.nodes.map(n=>
+    t.edges.filter(e=>e.from===n.mid).length),1);
+  nodesDS=new vis.DataSet(t.nodes.map(n=>({id:'m'+n.mid,
+    label:'@'+(n.username||n.author_id),shape:'dot',color:'#dad2bc',
+    value:8+20*t.edges.filter(e=>e.from===n.mid).length/maxCh,
+    font:{color:'#252323', face:'Plus Jakarta Sans', strokeWidth:3, strokeColor:'rgba(255,255,255,0.8)', size:11, weight:'bold'},
+    title:`${fmt(n.at_ms)}\n${(n.text||'').slice(0,140)}`})));
+  edgesDS=new vis.DataSet(t.edges.map((e,i)=>({id:i,from:'m'+e.from,to:'m'+e.to,
+    color:{color:'rgba(218, 210, 188, 0.6)'},hidden:false})));
+  network.setData({nodes:nodesDS,edges:edgesDS});
+  network.fit();
+  const order=[...t.edges].sort((a,b)=>a.at_ms-b.at_ms);
+  let i=0;$('traceInfo').textContent='TRACING 0/'+order.length;
+  const iv=setInterval(()=>{
+    if(i>=order.length){clearInterval(iv);$('traceInfo').textContent=
+      `TRACE COMPLETE: ${t.count} POSTS, ${order.length} REACTIONS`;return}
+    const e=order[i];
+    edgesDS.update({id:edgesDS.get({filter:f=>f.from==='m'+e.from&&f.to==='m'+e.to})[0]?.id
+      ??i,color:{color:'#70798c',highlight:'#70798c'},width:3});
+    nodesDS.update({id:'m'+e.to,color:'#70798c'});
+    $('traceInfo').textContent=`TRACING ${++i}/${order.length} — ${fmt(e.at_ms)}`;
+  },Math.max(30,Math.min(400,4000/order.length)));
+}
+ $('backToMap').onclick=()=>{S.traceMode=false;$('backToMap').style.display='none';
+  $('traceInfo').textContent='';loadGraph()};
+
+// ------------------------------------------------------------------ controls
+function syncSlider(){$('tFrom').textContent=fmt(Math.max(S.min,S.to-S.span));
+  $('tTo').textContent=fmt(S.to);
+  $('slider').value=1000*(S.to-S.min)/Math.max(1,S.max-S.min)}
+ $('slider').oninput=debounce(e=>{S.to=S.min+(e.target.value/1000)*(S.max-S.min);
+  syncSlider();refreshAll()},120);
+ $('fWindow').onchange=e=>{S.span=+e.target.value;syncSlider();refreshAll()};
+['fPlatform','fEmotion','fLocation','fLanguage'].forEach(id=>
+  $(id).onchange=refreshAll);
+ $('fSearch').oninput=debounce(refreshAll,500);
+ $('colorBy').onchange=()=>{if(!S.traceMode)loadGraph()};
+ $('nodeLimit').onchange=()=>{if(!S.traceMode)loadGraph()};
+ $('playBtn').onclick=()=>{
+  S.playing=!S.playing;$('playBtn').textContent=S.playing?'⏸ Pause':'▶ Play';
+  if(S.playing){const step=Math.max(60000,wparamsSpan()/10);
+    const iv=setInterval(()=>{if(!S.playing||S.to>=S.max){clearInterval(iv);
+      S.playing=false;$('playBtn').textContent='▶ Play';return}
+      S.to=Math.min(S.max,S.to+step);syncSlider();refreshAll()},900)}};
+function wparamsSpan(){return S.span}
+
+loadMeta();
+</script>
+</body></html>
