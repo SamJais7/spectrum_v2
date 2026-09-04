@@ -1,8 +1,6 @@
 x:
   mode: stream                    # "stream" = real-time | "poll" = recent-search fallback
   keywords:
-    - "#machinelearning"
-    - "data pipeline"
   poll_interval_seconds: 60
   metrics_refresh:
     enabled: true
@@ -11,7 +9,8 @@ x:
 telegram:
   session_name: collector         # re-created by `python main.py --login` (chunk 3)
   catch_up: true
-  targets:                        # PUBLIC channels / open groups only
+  targets:       
+    - "this_is_redbull_test_channel"                 # PUBLIC channels / open groups only
     - "telegram"
     - "durov"
 
