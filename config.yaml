@@ -9,7 +9,12 @@ x:
 telegram:
   session_name: collector         # re-created by `python main.py --login` (chunk 3)
   catch_up: true
-  targets:       
+  backfill:
+    enabled: true
+    limit: 300          # messages per chat pulled on first run (newest first)
+    batch_sleep: 1.0    # pause every 100 msgs (flood politeness)
+  targets: 
+    - "random_chats_english"    
     - "this_is_redbull_test_channel"                 # PUBLIC channels / open groups only
     - "telegram"
     - "durov"

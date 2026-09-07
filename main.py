@@ -24,6 +24,11 @@ from storage import Vault
 
 log = logging.getLogger("collector")
 
+# Force stdout/stderr to use UTF-8 encoding for console logs
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def load_config(path: str = "config.yaml") -> dict:
     with open(path, encoding="utf-8") as f:
@@ -41,7 +46,31 @@ def load_config(path: str = "config.yaml") -> dict:
     return cfg
 
 
+# def setup_logging(cfg: dict) -> None:
+#     lcfg = cfg.get("logging", {})
+#     level = getattr(logging, str(lcfg.get("level", "INFO")).upper(), logging.INFO)
+#     root = logging.getLogger()
+#     root.setLevel(level)
+#     fmt = logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+#     console = logging.StreamHandler()
+#     console.setFormatter(fmt)
+#     root.addHandler(console)
+#     if lcfg.get("file"):
+#         Path(lcfg["file"]).parent.mkdir(parents=True, exist_ok=True)
+#         fh = logging.handlers.RotatingFileHandler(
+#             lcfg["file"], maxBytes=10_000_000, backupCount=5)
+#         fh.setFormatter(fmt)
+#         root.addHandler(fh)
+
 def setup_logging(cfg: dict) -> None:
+    # Windows consoles use a legacy codepage (cp1252…) by default; logging any
+    # emoji/Cyrillic/CJK (chat titles, message text) crashes the handler with
+    # UnicodeEncodeError. Force UTF-8 with 'replace' so output can never raise.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     lcfg = cfg.get("logging", {})
     level = getattr(logging, str(lcfg.get("level", "INFO")).upper(), logging.INFO)
     root = logging.getLogger()
@@ -53,10 +82,10 @@ def setup_logging(cfg: dict) -> None:
     if lcfg.get("file"):
         Path(lcfg["file"]).parent.mkdir(parents=True, exist_ok=True)
         fh = logging.handlers.RotatingFileHandler(
-            lcfg["file"], maxBytes=10_000_000, backupCount=5)
+            lcfg["file"], maxBytes=10_000_000, backupCount=5,
+            encoding="utf-8")          # ← default is locale encoding — same crash, in the file
         fh.setFormatter(fmt)
         root.addHandler(fh)
-
 
 async def _stop_stream_when_shutdown(shutdown):
     while not shutdown.is_set():

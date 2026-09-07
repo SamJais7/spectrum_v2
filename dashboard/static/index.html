@@ -528,13 +528,12 @@ loadMeta();
 </body></html> -->
 
 <!DOCTYPE html>
-
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <title>Command Center</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet"/>
 <style>
 :root {
   --bg: #e0e5ec;
@@ -611,6 +610,10 @@ button:hover {
 }
 button:active {
   box-shadow: var(--shadow-inner);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 button.ghost {
   /* Inherits base button styles for neumorphism */
@@ -690,7 +693,7 @@ button.ghost {
   box-shadow: 2px 2px 4px var(--shadow-dark), -2px -2px 4px var(--shadow-light);
 }
 #timeLabels { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 14px; font-weight: 600; margin-top: 12px; }
-#nodePanel { font-size: 14px; } 
+#nodePanel { font-size: 14px; }
 #nodePanel h3 { margin-bottom: 12px; font-size: 18px; color: var(--accent); font-weight: 700; }
 #nodePanel table { width: 100%; border-collapse: collapse; }
 #nodePanel td { padding: 10px 0; border-bottom: 1px solid var(--shadow-dark); font-weight: 600; }
@@ -735,7 +738,7 @@ h2 { font-size: 16px; text-transform: uppercase; color: var(--text-main); letter
 <option selected="" value="21600000">6 hours</option><option value="86400000">24 hours</option>
 <option value="604800000">7 days</option>
 </select>
-<button class="ghost" id="playBtn">▶ Play</button>
+<button class="ghost" id="playBtn">▶ PLAY</button>
 <button aria-label="Toggle Dark Mode" class="ghost" id="themeToggle">🌙</button>
 </header>
 <div id="alerts"></div>
@@ -762,7 +765,8 @@ h2 { font-size: 16px; text-transform: uppercase; color: var(--text-main); letter
 </select>
 <span style="color:var(--text-muted)">MAX DOTS</span>
 <input id="nodeLimit" max="800" min="50" style="width:90px" type="number" value="300"/>
-<button class="ghost" id="backToMap" style="display:none">← Back to map</button>
+<button class="ghost" id="recomputeBtn" onclick="recomputeGraph()">↻ RECOMPUTE MAP</button>
+<button class="ghost" id="backToMap" style="display:none">← BACK TO MAP</button>
 </div>
 <div id="graphWrap"><div class="legend" id="legend"></div><div id="net" style="height:100%"></div></div>
 </div>
@@ -777,27 +781,28 @@ h2 { font-size: 16px; text-transform: uppercase; color: var(--text-main); letter
 <h2>Trending topics (top 10 · volume &amp; velocity) — click for details</h2>
 <div id="topicList"><div style="color:var(--text-muted); font-weight:600; font-size:14px">WAITING FOR TOPIC SCANS…</div></div>
 </div>
-<div id="drawer"><button class="ghost" onclick="drawer.classList.remove('open')" style="margin-bottom:24px">✕ Close</button><div id="drawerBody"></div></div>
+<div id="drawer"><button class="ghost" onclick="drawer.classList.remove('open')" style="margin-bottom:24px">✕ CLOSE</button><div id="drawerBody"></div></div>
 <script>
 const EMO_COLORS={supportive:'#39ff14',hostile:'#ff0055',sarcasm:'#b026ff',
   fear:'#ffff00',excitement:'#ff6600',neutral:'#888888'};
 const TOKEN=localStorage.getItem('cc_token')||'';
 const S={min:0,max:0,to:0,span:21600000,playing:false,traceMode:false};
+let graphBooted=false;   // one refresh POST per page open, before first graph load
 let meta={},tlChart=null,pieChart=null,network=null,nodesDS=null,edgesDS=null,gdata={nodes:[],edges:[]};
 const $=id=>document.getElementById(id);
 const drawer=$('drawer');
 
-$('themeToggle').onclick = () => {
+ $('themeToggle').onclick = () => {
   const isDark = document.body.classList.toggle('dark-mode');
   $('themeToggle').textContent = isDark ? '☀️' : '🌙';
-  refreshAll(); // To redraw charts with updated colors if needed
+  refreshAll(); // redraw charts + map with new theme colors
 };
 
-function api(path,params={}){
+function api(path,params={},opts={}){
   const u=new URL(path,location.origin);
   for(const[k,v]of Object.entries(params))if(v!==''&&v!=null)u.searchParams.set(k,v);
-  const h={};if(TOKEN)h['Authorization']='Bearer '+TOKEN;
-  return fetch(u,{headers:h}).then(async r=>{
+  const h={...(opts.headers||{})};if(TOKEN)h['Authorization']='Bearer '+TOKEN;
+  return fetch(u,{...opts,headers:h}).then(async r=>{
     if(r.status===401){const t=prompt('Dashboard token:');if(t){localStorage.setItem('cc_token',t);location.reload()}throw 0}
     if(!r.ok)throw new Error(await r.text());return r.json()});
 }
@@ -894,7 +899,7 @@ async function loadTopicDetail(key){
     <h2 style="margin-top:24px; color:var(--text-muted)">AGE RANGES</h2>${bars(d.age)}
     <h2 style="margin-top:24px; color:var(--text-muted)">LOCATIONS</h2>${bars(d.location)}
     <h2 style="margin-top:24px; color:var(--text-muted)">LANGUAGES</h2>${bars(d.language)}`;
-  
+
   const textColor = getComputedStyle(document.body).getPropertyValue('--text-muted').trim() || '#718096';
   const gridColor = document.body.classList.contains('dark-mode') ? 'rgba(255,255,255,0.05)' : 'rgba(163,177,198,0.3)';
 
@@ -912,6 +917,13 @@ const hashColor=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))%36
   return`hsl(${h},100%,60%)`};
 
 async function loadGraph(){
+  if(!graphBooted){                                    // ON OPEN: compute now
+    graphBooted=true;
+    $('traceInfo').textContent='COMPUTING SOCIAL MAP…';
+    try{ await api('/api/graph/refresh',{},{method:'POST'}); }
+    catch(e){ console.warn('graph refresh failed',e); }
+    $('traceInfo').textContent='';
+  }
   const g=await api('/api/graph',{...wparams(),limit:$('nodeLimit').value});
   gdata=g;
   const mode=$('colorBy').value;
@@ -922,7 +934,7 @@ async function loadGraph(){
     if(mode==='suspicion'){const s=n.suspicion||0;
       return`hsl(${Math.round(120-120*Math.min(s,1))},100%,50%)`}
     return`hsl(${(n.community*47)%360},100%,55%)`};
-    
+
   const nodeBorder = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#e0e5ec';
   const nodeText = getComputedStyle(document.body).getPropertyValue('--text-main').trim() || '#2d3748';
 
@@ -955,6 +967,16 @@ async function loadGraph(){
   else lg.innerHTML='EACH COMMUNITY GETS ITS OWN HUE · <span style="color:#ffff00">🟡</span> BORDER = BRIDGE · <span style="color:#ff0055">🔺</span> = FLAGGED CLUSTER';
 }
 
+async function recomputeGraph(){                     // manual ↻ button
+  const b=$('recomputeBtn'); if(b.disabled)return;
+  b.disabled=true; b.textContent='COMPUTING…';
+  $('traceInfo').textContent='COMPUTING SOCIAL MAP…';
+  try{ await api('/api/graph/refresh',{},{method:'POST'}); await loadGraph(); }
+  catch(e){ console.error(e); }
+  b.disabled=false; b.textContent='↻ RECOMPUTE MAP';
+  $('traceInfo').textContent='';
+}
+
 function showNode(id){
   const n=nodesDS.get(id)._raw;
   $('nodePanel').innerHTML=`<h2>Node inspector</h2>
@@ -979,7 +1001,7 @@ async function traceUser(source,authorId){
   const byMid={};t.nodes.forEach(n=>byMid[n.mid]=n);
   const maxCh=Math.max(...t.nodes.map(n=>
     t.edges.filter(e=>e.from===n.mid).length),1);
-    
+
   const nodeBorder = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#e0e5ec';
   const nodeText = getComputedStyle(document.body).getPropertyValue('--text-main').trim() || '#2d3748';
 
@@ -988,7 +1010,7 @@ async function traceUser(source,authorId){
     value:8+20*t.edges.filter(e=>e.from===n.mid).length/maxCh,
     font:{color:nodeText, face:'Inter', strokeWidth:3, strokeColor:nodeBorder, size:12, weight:'bold'},
     title:`${fmt(n.at_ms)}\n${(n.text||'').slice(0,140)}`})));
-  
+
   const edgeColor = document.body.classList.contains('dark-mode') ? 'rgba(255,255,255,0.1)' : 'rgba(163,177,198,0.4)';
   edgesDS=new vis.DataSet(t.edges.map((e,i)=>({id:i,from:'m'+e.from,to:'m'+e.to,
     color:{color:edgeColor},hidden:false})));

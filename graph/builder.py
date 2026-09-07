@@ -103,7 +103,7 @@ def build_pass(db_path: str, limit: int = 20000) -> int:
                     _edge(conn, source, "mention", author, dest[0], at_us)
 
         # resolve pendings whose parent has since arrived
-        for rowid, source, kind, ext, child_author in conn.execute(
+        for rowid, source, kind, ext, child_author, _ in conn.execute(
                 "SELECT p.message_rowid, p.source, p.kind, p.external_id, m.author_id,"
                 " m.posted_at_us FROM pending_edges p"
                 " JOIN messages m ON m.id=p.message_rowid").fetchall():
@@ -117,7 +117,15 @@ def build_pass(db_path: str, limit: int = 20000) -> int:
     finally:
         conn.close()
 
-
+def _heartbeat(db_path: str) -> None:
+    """Liveness marker: tells the dashboard's on-demand refresh that this
+    loop is alive, so it won't run its own edge pass concurrently."""
+    from analytics_schema import analytics_connect, set_state
+    conn = analytics_connect(db_path)
+    try:
+        set_state(conn, "graph_loop_last", time.time())
+    finally:
+        conn.close()
 async def run_graph_loop(cfg, shutdown):
     acfg = cfg.get("analytics", {})
     g = acfg.get("graph", {})
