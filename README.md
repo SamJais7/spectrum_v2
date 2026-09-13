@@ -245,9 +245,9 @@ telegram:
   api_id: null         # loaded automatically from .env
   api_hash: null        # loaded automatically from .env
   targets:
-    - "Random Chats English"
-    - "durov"
-    - "telegram"
+    - "Channel_Target_1"
+    - "Channel_Target_2"
+    - "Channel_Target_3"
 
 analytics:
   db_path: data/vault.db
