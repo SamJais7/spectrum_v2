@@ -309,12 +309,12 @@ Open a second PowerShell window in the project directory:
 ```powershell
 cd C:\path\to\spectrum
 .\venv\Scripts\Activate.ps1
-uvicorn dashboard.server:app --port 8080
+uvicorn dashboard.server:app --port 8000
 ```
 
 What to expect:
-- Uvicorn starts on [http://127.0.0.1:8080](http://127.0.0.1:8080).
-- Open your browser to `http://localhost:8080` to access the live dashboard.
+- Uvicorn starts on [http://127.0.0.1:8000](http://127.0.0.1:8000).
+- Open your browser to `http://localhost:8000` to access the live dashboard.
 
 ---
 
