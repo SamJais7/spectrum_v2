@@ -14,10 +14,11 @@ telegram:
     limit: 300          # messages per chat pulled on first run (newest first)
     batch_sleep: 1.0    # pause every 100 msgs (flood politeness)
   targets: 
-    - "random_chats_english"    
-    - "this_is_redbull_test_channel"                 # PUBLIC channels / open groups only
-    - "telegram"
-    - "durov"
+      - "random_chats_english"    
+      - "this_is_redbull_test_channel"                 # PUBLIC channels / open groups only
+      - "telegram"
+      - "durov"
+
 
 storage:
   db_path: data/vault.db
@@ -35,9 +36,61 @@ storage:
 
 analytics:
   db_path: data/vault.db
-  nlp:
+  pipeline: five_step           # five_step (the 5-step plan) | hybrid | adaptive | llm | legacy
+  keep_legacy_analytics: true   # old dashboard panels keep working
+
+  cache:                        # ← NEW: Step 2 — semantic cache settings
+    threshold: 0.95             # cosine ≥ this → inherit labels, GPU bypassed
+    store_path: data/vector_store
+    collection: spectrum_vectors
+    min_hits: 500               # cache below this → GPU everything (index warm-up)
+    pull_chunk: 250             # messages examined per cycle
+
+  hybrid:                       # kept: Step 3/4 read these (ensemble + fallback gate)
+    processed_db: data/processed.db
+    pull_chunk: 400
+    batch: 16                   # GPU micro-batch
+    queue_cap: 100              # backlog > this → Layer 2 (your Step 4)
+    batch_timeout_ms: 2000      # observed batch latency > this → Layer 2
+    oom_cooldown_s: 300
+    force_layer2: false
+    irony_threshold: 0.80
+    models:
+      lid: "l3cube-pune/hing-bert-lid"
+      sarcasm: "helinivan/english-sarcasm-detector"
+      sentiment: "cardiffnlp/twitter-roberta-base-sentiment-latest"
+      emotion: "SamLowe/roberta-base-go_emotions"
+
+  clustering:                   # kept: Step 5 discovery settings
     enabled: true
-    engine: lexicon          # lexicon (fast, offline) | ml (zero-shot transformer)
+    scan_minutes: 12            # your "every 12 minutes"
+    window_hours: 48
+    min_cluster_size: 15
+    min_samples: 5
+    umap_neighbors: 15
+    velocity_recent_h: 6
+
+  llm:                          # kept: Step 5 only — titling + briefing (NOT classification)
+    enabled: true
+    base_url: "http://127.0.0.1:11434"
+    model: "qwen2.5:3b-instruct"
+    timeout_s: 90
+    keep_alive: 0
+
+  summary:                      # ← NEW: the 100-200 word briefing settings
+    window_hours: 24
+    max_posts: 60
+
+  embeddings:                   # kept but dormant under five_step (the pipeline embeds
+    enabled: true               # internally via the cache; this loop is not started)
+    model: "sentence-transformers/all-MiniLM-L6-v2"
+    store_path: data/vector_store
+    collection: spectrum_vectors
+    batch: 64
+
+  nlp:                          # kept: legacy worker (dashboard compatibility)
+    enabled: true
+    engine: lexicon
     batch: 500
     poll_seconds: 2
   topics:
@@ -63,11 +116,3 @@ analytics:
     enabled: true
     refresh_hours: 12
     max_per_cycle: 1000
-
-dashboard:
-  host: 127.0.0.1
-  port: 8080
-
-logging:
-  level: INFO
-  file: logs/collector.log

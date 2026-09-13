@@ -46,22 +46,6 @@ def load_config(path: str = "config.yaml") -> dict:
     return cfg
 
 
-# def setup_logging(cfg: dict) -> None:
-#     lcfg = cfg.get("logging", {})
-#     level = getattr(logging, str(lcfg.get("level", "INFO")).upper(), logging.INFO)
-#     root = logging.getLogger()
-#     root.setLevel(level)
-#     fmt = logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
-#     console = logging.StreamHandler()
-#     console.setFormatter(fmt)
-#     root.addHandler(console)
-#     if lcfg.get("file"):
-#         Path(lcfg["file"]).parent.mkdir(parents=True, exist_ok=True)
-#         fh = logging.handlers.RotatingFileHandler(
-#             lcfg["file"], maxBytes=10_000_000, backupCount=5)
-#         fh.setFormatter(fmt)
-#         root.addHandler(fh)
-
 def setup_logging(cfg: dict) -> None:
     # Windows consoles use a legacy codepage (cp1252…) by default; logging any
     # emoji/Cyrillic/CJK (chat titles, message text) crashes the handler with
@@ -83,9 +67,10 @@ def setup_logging(cfg: dict) -> None:
         Path(lcfg["file"]).parent.mkdir(parents=True, exist_ok=True)
         fh = logging.handlers.RotatingFileHandler(
             lcfg["file"], maxBytes=10_000_000, backupCount=5,
-            encoding="utf-8")          # ← default is locale encoding — same crash, in the file
+            encoding="utf-8")          # default is locale encoding — same crash, in the file
         fh.setFormatter(fmt)
         root.addHandler(fh)
+
 
 async def _stop_stream_when_shutdown(shutdown):
     while not shutdown.is_set():
@@ -112,7 +97,7 @@ async def run(cfg, vault: Vault, conveyor: Conveyor, shutdown) -> None:
             tasks.append(asyncio.create_task(run_metrics_refresher(
                 xcfg["bearer_token"], vault, shutdown, mr.get("interval_seconds", 900))))
     else:
-        log.warning("X not configured — X collection disabled")
+        log.warning("X not configured — collection disabled")
 
     db = cfg["storage"]["db_path"]
     if tg_cfg.get("targets") and tg_cfg.get("api_id") and tg_cfg.get("api_hash"):
@@ -122,8 +107,43 @@ async def run(cfg, vault: Vault, conveyor: Conveyor, shutdown) -> None:
         log.warning("Telegram not configured — collection disabled")
 
     acfg = cfg.get("analytics", {})
-    if acfg.get("nlp", {}).get("enabled", True):
+
+    # ---- NLP pipeline selection ---------------------------------------------
+    # five_step : embed -> chroma 0.95 semantic cache -> HF GPU ensemble ->
+    #             lexicon fallback gate -> HDBSCAN + Ollama discovery/briefing
+    # hybrid    : the earlier two-layer GPU/Lexicon cascade (+ embeddings loop)
+    # adaptive  : cluster-exemplar LLM variant
+    # llm       : Ollama classifies everything
+    # legacy    : lexicon worker only
+
+    
+    pipeline = acfg.get("pipeline", "legacy")
+    if pipeline == "five_step":
+        from nlp.five_step import FiveStepRunner
+        runner = FiveStepRunner(cfg)
+        tasks.append(asyncio.create_task(runner.run(shutdown)))
+        if acfg.get("keep_legacy_analytics", True):
+            tasks.append(asyncio.create_task(run_nlp_loop(cfg, shutdown)))
+    elif pipeline == "hybrid":
+        from nlp.controller import run_controller_loop          # lazy import
+        tasks.append(asyncio.create_task(run_controller_loop(cfg, shutdown)))
+        if acfg.get("keep_legacy_analytics", True):
+            tasks.append(asyncio.create_task(run_nlp_loop(cfg, shutdown)))
+        if acfg.get("embeddings", {}).get("enabled", True):
+            from nlp.embeddings import run_embedding_loop
+            tasks.append(asyncio.create_task(run_embedding_loop(cfg, shutdown)))
+        if acfg.get("clustering", {}).get("enabled", True):
+            from clustering import run_clustering_loop          # root-level module
+            tasks.append(asyncio.create_task(run_clustering_loop(cfg, shutdown)))
+    elif pipeline == "llm":
+        from nlp.llm_pipeline import LLMPipeline
+        pipe = LLMPipeline(cfg)
+        tasks.append(asyncio.create_task(pipe.run(shutdown)))
+        if acfg.get("keep_legacy_analytics", True):
+            tasks.append(asyncio.create_task(run_nlp_loop(cfg, shutdown)))
+    elif acfg.get("nlp", {}).get("enabled", True):
         tasks.append(asyncio.create_task(run_nlp_loop(cfg, shutdown)))
+
     if acfg.get("topics", {}).get("enabled", True):
         tasks.append(asyncio.create_task(run_topic_loop(cfg, shutdown)))
     if acfg.get("graph", {}).get("enabled", True):

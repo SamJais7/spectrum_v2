@@ -11,6 +11,7 @@
 
 import math
 import re
+import torch
 from datetime import datetime, timezone
 
 EMOTION_LABELS = ("supportive", "hostile", "sarcasm", "fear", "excitement", "neutral")
@@ -202,7 +203,12 @@ class MLEmotionEngine:
     _KEYS = ["supportive", "hostile", "sarcasm", "fear", "excitement"]
 
     def __init__(self):
-        self._pipe = None
+        device = 0 if torch.cuda.is_available() else -1
+        self.pipe = pipeline(
+            "zero-shot-classification",
+            model="facebook/bart-large-mnli",
+            device=device
+        )
 
     def _load(self):
         from transformers import pipeline            # optional dependency

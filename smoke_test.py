@@ -20,9 +20,17 @@ def main():
     t = datetime.now(timezone.utc) - timedelta(minutes=5)
 
     def msg(eid, text, **kw):
-        return NormalizedMessage(source="x", external_id=eid, conversation_id="1",
-                                 author_id="100", author_username="alice",
-                                 text=text, posted_at=t, **kw)
+        return NormalizedMessage(
+            source="x",
+            external_id=eid,
+            conversation_id="1",
+            author_id="100",
+            author_username="alice",
+            text=text,
+            posted_at=t,
+            reply_to_external_id=kw.pop("reply_to_external_id", None),
+            **kw,
+        )
 
     # 1. two new messages → 2 rows, 1 sealed ledger block
     r = vault.write_batch([msg("1", "launch day, let's go!! 🚀", metrics={"likes": 3}),

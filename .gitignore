@@ -1,7 +1,15 @@
-.env
-*.session
-data/
-logs/
+.venv/
 __pycache__/
 *.pyc
-.venv/
+
+# Local secrets & credentials
+.env
+collector.session
+collector.session-journal
+
+# Analytics and Vector databases
+data/
+*.db
+*.db-journal
+*.log
+logs/
