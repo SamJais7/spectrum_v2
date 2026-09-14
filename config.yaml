@@ -13,11 +13,10 @@ telegram:
     enabled: true
     limit: 300          # messages per chat pulled on first run (newest first)
     batch_sleep: 1.0    # pause every 100 msgs (flood politeness)
-  targets: 
-      - "random_chats_english"    
-      - "this_is_redbull_test_channel"                 # PUBLIC channels / open groups only
-      - "telegram"
-      - "durov"
+  targets:
+    - "Channel_Target_1"
+    - "Channel_Target_2"
+    - "Channel_Target_3"
 
 
 storage:
