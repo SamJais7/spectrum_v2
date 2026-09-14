@@ -1,4 +1,4 @@
-# SPECTRUM
+# SPECTRUM : Social Perception, Emotion, Conversation, Trends, Relationships, Understanding & Monitoring
 
 **A tamper-evident, offline-capable social intelligence pipeline for Telegram and X.**
 
