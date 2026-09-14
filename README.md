@@ -194,7 +194,7 @@ FastAPI (11+ endpoints, read-only, optional bearer auth) + single-file dashboard
 ### Step 1 — Clone the Repository
 
 ```powershell
-git clone <YOUR_GIT_REPOSITORY_URL> spectrum
+git clone https://github.com/SamJais7/spectrum_v2.git spectrum
 cd spectrum
 ```
 
